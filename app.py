@@ -1,7 +1,3 @@
-from pyngrok import ngrok
-public_url = ngrok.connect(8501)
-print("APP MOBILE URL :", public_url)
-
 import streamlit as st
 from openai import OpenAI
 from audio_recorder_streamlit import audio_recorder
@@ -170,4 +166,5 @@ else:
             st.write(h["original"])
             st.markdown("**Traduction :**")
             st.write(h["translated"])
+
             st.audio(h["audio"], format="audio/mp3")
