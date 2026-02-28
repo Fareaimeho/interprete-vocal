@@ -56,32 +56,46 @@ def tts(text: str, voice: str) -> bytes:
     )
     return speech.read()
 
+def _guess_audio_type(data: bytes) -> tuple[str, str]:
+    """
+    Return (filename, mime) based on magic bytes.
+    """
+    if not data or len(data) < 1000:
+        return ("audio.wav", "audio/wav")  # fallback
+
+    head = data[:16]
+
+    # WAV: "RIFF....WAVE"
+    if head[:4] == b"RIFF" and b"WAVE" in data[:32]:
+        return ("audio.wav", "audio/wav")
+
+    # WEBM / MKV: 1A 45 DF A3
+    if head[:4] == b"\x1a\x45\xdf\xa3":
+        return ("audio.webm", "audio/webm")
+
+    # OGG: "OggS"
+    if head[:4] == b"OggS":
+        return ("audio.ogg", "audio/ogg")
+
+    # MP3: "ID3" or 0xFF 0xFB
+    if head[:3] == b"ID3" or (head[0] == 0xFF and (head[1] & 0xE0) == 0xE0):
+        return ("audio.mp3", "audio/mpeg")
+
+    # Default safest
+    return ("audio.wav", "audio/wav")
+
+
 def stt(audio_bytes: bytes) -> str:
-    """
-    Compatible PC + Android : essaie plusieurs formats.
-    """
-    candidates = [
-        ("audio.webm", "audio/webm"),
-        ("audio.wav", "audio/wav"),
-        ("audio.mp4", "audio/mp4"),
-        ("audio.m4a", "audio/mp4"),
-        ("audio.ogg", "audio/ogg"),
-    ]
+    if not audio_bytes or len(audio_bytes) < 2000:
+        return ""
 
-    last_error = None
-    for filename, mime in candidates:
-        try:
-            transcript = client.audio.transcriptions.create(
-                model="gpt-4o-mini-transcribe",
-                file=(filename, audio_bytes, mime),
-            )
-            text = (transcript.text or "").strip()
-            if text:
-                return text
-        except Exception as e:
-            last_error = e
+    filename, mime = _guess_audio_type(audio_bytes)
 
-    raise last_error
+    transcript = client.audio.transcriptions.create(
+        model="gpt-4o-mini-transcribe",
+        file=(filename, audio_bytes, mime),
+    )
+    return transcript.text.strip()
 
 def add_history(item: dict):
     st.session_state.history.insert(0, item)
@@ -168,3 +182,4 @@ else:
             st.write(h["translated"])
 
             st.audio(h["audio"], format="audio/mp3")
+
